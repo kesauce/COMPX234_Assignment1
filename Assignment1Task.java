@@ -1,4 +1,6 @@
 import java.util.ArrayList;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.locks.ReentrantLock;
 
 class Assignment1 {
 
@@ -12,6 +14,15 @@ class Assignment1 {
 
     // Create an empty list of print requests
     printList list = new printList();
+
+    // Machine semaphore starts at 5 to represent the 5 available spaces for printing documents
+    private static Semaphore machineSemaphore = new Semaphore(5);
+
+    // Printer semaphore starts at 0 to represent the 0 jobs that are currently printing
+    private static Semaphore printerSemaphore = new Semaphore(0);
+
+    // Mutex lock to ensure that there are no clashes between 2 printers and 1 job or 2 jobs and 1 printer
+    private static ReentrantLock mutexLock = new ReentrantLock();
 
     public void startSimulation() {
 
@@ -70,6 +81,8 @@ class Assignment1 {
             }
         }
 
+
+
     }
 
     // Printer class
@@ -82,11 +95,26 @@ class Assignment1 {
 
         public void run() {
             while (sim_active) {
-                // Simulate printer taking some time to print the document
-                printerSleep();
                 // Grab the request at the head of the queue and print it
-                // Write code here
-                
+                try{
+                    //Acquire a permit from the machines to print a document and lock the lock so that nothing can interrupt the process
+                    printerSemaphore.acquire();
+                    mutexLock.lock();
+
+                    // Simulate printer taking some time to print the document and print the document
+                    printerSleep();
+                    printDox(printerID);
+
+                    //Send a permit to the machines to announce that a printer is available
+                    machineSemaphore.release();
+                }
+                catch (Exception e){
+                    e.printStackTrace();
+                }
+                finally{
+                    //Unlock the lock again so that others can send requests
+                    mutexLock.unlock();
+                }
             }
         }
 
@@ -118,11 +146,25 @@ class Assignment1 {
 
         public void run() {
             while (sim_active) {
-                // machine sleeps for a random amount of time
-                machineSleep();
-                // machine wakes up and sends a print request
-                // Write code here
-                printRequest(machineID);
+                try{
+                    //Acquire a permit from the printer to print a document and lock the lock so that nothing can interrupt the process
+                    machineSemaphore.acquire();
+                    mutexLock.lock();
+
+                    // Machine sleeps for a random amount of time and sends a print request
+                    machineSleep();
+                    printRequest(machineID);
+
+                    //Send a permit to the machines to announce that a document is done
+                    printerSemaphore.release();
+                }
+                catch (Exception e){
+                    e.printStackTrace();
+                }
+                finally{
+                    //Unlocks the mutex lock for other use
+                    mutexLock.unlock();
+                }
             }
         }
 
